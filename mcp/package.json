@@ -13,8 +13,11 @@
     "dev": "wrangler dev",
     "stdio": "bun src/stdio.ts",
     "http": "bun src/http.ts",
+    "test": "bun test src",
+    "lint": "biome lint src/",
     "typecheck": "tsc --noEmit",
-    "check:deploy": "bun install --frozen-lockfile && tsc --noEmit",
+    "check": "bun run typecheck && bun run test && bun run lint",
+    "check:deploy": "bun install --frozen-lockfile && bun run check",
     "deploy": "bun run check:deploy && wrangler deploy",
     "deploy:staging": "bun run check:deploy && wrangler deploy --env staging"
   },
@@ -28,6 +31,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.6",
     "@cloudflare/workers-types": "^4.20241002.0",
     "typescript": "^5.3.3",
     "wrangler": "^4.24.3"

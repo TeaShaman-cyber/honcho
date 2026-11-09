@@ -8,6 +8,10 @@ export const HEADER_PLUGIN = "X-Honcho-Plugin";
 /** Chat runs a tool-using agent that can outlast the SDK's 60s default. */
 const DEFAULT_TIMEOUT_MS = 300_000;
 
+/** Keep one retrieved message from consuming an entire model context window. */
+export const DEFAULT_MAX_MESSAGE_CONTENT_CHARS = 2_000;
+const MAX_MESSAGE_CONTENT_CHARS = 100_000;
+
 /** Honcho's API caps client header values at 256 chars; match it. */
 const MAX_PLUGIN_LEN = 256;
 
@@ -45,11 +49,14 @@ export interface HonchoConfig {
   workspaceId?: string;
   /** Honcho API request timeout, from HONCHO_TIMEOUT_MS. */
   timeoutMs?: number;
+  /** Maximum Unicode code points returned for one message's content. */
+  maxMessageContentChars: number;
 }
 
 export interface Env {
   HONCHO_API_URL?: string;
   HONCHO_TIMEOUT_MS?: string;
+  MCP_MAX_MESSAGE_CONTENT_CHARS?: string;
   ALERT_WEBHOOK_URL?: string;
   SENTRY_DSN?: string;
 }
@@ -59,11 +66,26 @@ export interface EnvConfig {
   HONCHO_API_URL?: string;
   HONCHO_WORKSPACE_ID?: string;
   HONCHO_TIMEOUT_MS?: string;
+  MCP_MAX_MESSAGE_CONTENT_CHARS?: string;
 }
 
 function parseTimeoutMs(value?: string): number | undefined {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+export function parseMaxMessageContentChars(value?: string): number {
+  if (value === undefined || value.trim() === "") {
+    return DEFAULT_MAX_MESSAGE_CONTENT_CHARS;
+  }
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    return DEFAULT_MAX_MESSAGE_CONTENT_CHARS;
+  }
+  const n = Number(trimmed);
+  return Number.isSafeInteger(n) && n <= MAX_MESSAGE_CONTENT_CHARS
+    ? n
+    : DEFAULT_MAX_MESSAGE_CONTENT_CHARS;
 }
 
 /**
@@ -100,6 +122,9 @@ export function parseConfig(request: Request, env: Env = {}): HonchoConfig {
     baseUrl: env.HONCHO_API_URL?.trim() || "https://api.honcho.dev",
     workspaceId,
     timeoutMs: parseTimeoutMs(env.HONCHO_TIMEOUT_MS),
+    maxMessageContentChars: parseMaxMessageContentChars(
+      env.MCP_MAX_MESSAGE_CONTENT_CHARS,
+    ),
   };
 }
 
@@ -116,6 +141,9 @@ export function parseEnvConfig(env: EnvConfig): HonchoConfig {
     baseUrl: env.HONCHO_API_URL?.trim() || "https://api.honcho.dev",
     workspaceId: env.HONCHO_WORKSPACE_ID?.trim() || undefined,
     timeoutMs: parseTimeoutMs(env.HONCHO_TIMEOUT_MS),
+    maxMessageContentChars: parseMaxMessageContentChars(
+      env.MCP_MAX_MESSAGE_CONTENT_CHARS,
+    ),
   };
 }
 

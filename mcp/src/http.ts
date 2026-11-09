@@ -89,10 +89,11 @@ function sweepSessions(): void {
   }
 }
 
-function envBindings(): Env {
+export function envBindings(): Env {
   return {
     HONCHO_API_URL: process.env.HONCHO_API_URL,
     HONCHO_TIMEOUT_MS: process.env.HONCHO_TIMEOUT_MS,
+    MCP_MAX_MESSAGE_CONTENT_CHARS: process.env.MCP_MAX_MESSAGE_CONTENT_CHARS,
   };
 }
 

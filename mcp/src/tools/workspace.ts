@@ -313,7 +313,7 @@ export function register(server: McpServer, ctx: ToolContext) {
           searchConclusions(),
         ]);
         return textResult({
-          messages: formatMessages(messages),
+          messages: formatMessages(messages, ctx.config.maxMessageContentChars),
           conclusions: conclusions.map((c) => ({
             id: c.id,
             content: c.content,
