@@ -68,6 +68,30 @@ afterEach(async () => {
 const bodyFor = (suffix: string) =>
   requests.find((r) => r.path.endsWith(suffix))?.body as Record<string, unknown> | undefined;
 
+test("search budget is opt-in and preserves the legacy text-only contract", async () => {
+  const legacy = await client.callTool({
+    name: "search",
+    arguments: { query: "example" },
+  });
+  const baseline = JSON.parse((legacy.content as { text: string }[])[0].text);
+  expect(Object.keys(baseline)).toEqual(["messages", "conclusions"]);
+
+  const bounded = await client.callTool({
+    name: "search",
+    arguments: { query: "example", max_result_json_bytes: 512 },
+  });
+  expect(bounded.isError).not.toBe(true);
+  const text = (bounded.content as { text: string }[])[0].text;
+  expect(new TextEncoder().encode(text).length).toBeLessThanOrEqual(512);
+  const parsed = JSON.parse(text);
+  expect(parsed.format).toBe("honcho_search_bounded_v1");
+  expect(parsed.coverage).toMatchObject({
+    retrieved_messages: 0,
+    retrieved_conclusions: 0,
+    total_matches_status: "UNKNOWN_UPSTREAM",
+  });
+});
+
 test("scope read options reach the wire on every read tool", async () => {
   const created = await client.callTool({
     name: "create_session",
