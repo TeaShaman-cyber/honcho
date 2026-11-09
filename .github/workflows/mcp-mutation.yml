@@ -1,0 +1,51 @@
+name: Honcho MCP mutation audit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/mcp-mutation.yml"
+      - "mcp/mutation/**"
+      - "mcp/src/types.ts"
+      - "mcp/src/types.test.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install MCP dependencies
+        working-directory: mcp
+        run: bun install --frozen-lockfile
+      - name: Install pinned Stryker runner
+        working-directory: mcp
+        run: npm ci --prefix mutation
+      - name: Baseline checks
+        working-directory: mcp
+        run: bun run check
+      - name: Verify the verification gate
+        working-directory: mcp
+        run: node --test mutation/verify-report.test.mjs
+      - name: Mutation pilot
+        working-directory: mcp
+        run: ./mutation/node_modules/.bin/stryker run mutation/stryker.config.json
+      - name: Confirm complete report
+        working-directory: mcp
+        run: node mutation/verify-report.mjs reports/mutation/mutation.json
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-mutation-report
+          path: mcp/reports/mutation/mutation.json
+          if-no-files-found: warn

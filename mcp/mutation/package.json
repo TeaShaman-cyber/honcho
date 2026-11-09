@@ -1,0 +1,7 @@
+{
+  "name": "honcho-mcp-mutation-audit",
+  "private": true,
+  "description": "Isolated StrykerJS runner for the MCP formatter audit",
+  "engines": { "node": ">=22" },
+  "devDependencies": { "@stryker-mutator/core": "10.1.1" }
+}
