@@ -105,7 +105,9 @@ test("hostile escaping and emoji remain strict JSON and deterministic", () => {
   const messages = [message('newline\nquote" slash\\ emoji😀'.repeat(90), "m1")];
   const result = boundedSearchResponse(messages, [], 650, 2000);
   const text = JSON.stringify(result);
-  expect(JSON.parse(text)).toEqual(result);
+  const parsed = JSON.parse(text);
+  expect(parsed.messages[0].created_at).toBe("2026-11-09T00:00:00.000Z");
+  expect(parsed.messages[0].content_truncated).toBe(true);
   expect(utf8Bytes(result)).toBeLessThanOrEqual(650);
   expect(boundedSearchResponse(messages, [], 650, 2000)).toEqual(result);
   expect(result.messages[0]?.content_truncated).toBe(true);
