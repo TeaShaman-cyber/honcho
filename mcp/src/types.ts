@@ -8,7 +8,7 @@ import type {
 } from "@honcho-ai/sdk";
 import { HonchoError } from "@honcho-ai/sdk";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { HonchoConfig } from "./config.js";
+import { DEFAULT_MAX_MESSAGE_CONTENT_CHARS, type HonchoConfig } from "./config.js";
 
 export interface ToolContext {
   config: HonchoConfig;
@@ -120,11 +120,37 @@ export function invalidTokenResponse(
   );
 }
 
-/** Serialize a Message to a plain JSON-safe object. */
-export function formatMessage(message: Message) {
+/**
+ * Bound one message by Unicode code points so truncation never leaves a split
+ * surrogate pair in otherwise valid JSON output.
+ */
+export function truncateMessageContent(content: string, maxChars: number) {
+  if (!Number.isInteger(maxChars) || maxChars <= 0) {
+    throw new RangeError("maxChars must be a positive integer");
+  }
+  const chars = Array.from(content);
+  const truncated = chars.length > maxChars;
+  const preview = truncated
+    ? `${chars.slice(0, Math.max(0, maxChars - 1)).join("")}…`
+    : content;
+  return {
+    content: preview,
+    contentChars: chars.length,
+    contentTruncated: truncated,
+  };
+}
+
+/** Serialize a Message to a bounded plain JSON-safe object. */
+export function formatMessage(
+  message: Message,
+  maxContentChars = DEFAULT_MAX_MESSAGE_CONTENT_CHARS,
+) {
+  const bounded = truncateMessageContent(message.content, maxContentChars);
   return {
     id: message.id,
-    content: message.content,
+    content: bounded.content,
+    content_chars: bounded.contentChars,
+    content_truncated: bounded.contentTruncated,
     peer_id: message.peerId,
     session_id: message.sessionId,
     metadata: message.metadata,
@@ -189,7 +215,10 @@ export function formatSessionSummaries(summaries: SessionSummaries) {
   };
 }
 
-/** Serialize a Message[] to a plain JSON-safe array. */
-export function formatMessages(messages: Message[]) {
-  return messages.map(formatMessage);
+/** Serialize a Message[] to a bounded plain JSON-safe array. */
+export function formatMessages(
+  messages: Message[],
+  maxContentChars = DEFAULT_MAX_MESSAGE_CONTENT_CHARS,
+) {
+  return messages.map((message) => formatMessage(message, maxContentChars));
 }

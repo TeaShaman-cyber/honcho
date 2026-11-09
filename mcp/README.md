@@ -80,6 +80,11 @@ When unset, requests go to `https://api.honcho.dev`.
 Raise it if `chat` runs longer than that on your model. A reverse proxy in
 front of the HTTP host needs a read timeout at least this long.
 
+`MCP_MAX_MESSAGE_CONTENT_CHARS` bounds each message returned by MCP tools
+(default 2000, maximum 100000 Unicode code points). Truncated records keep their
+IDs and provenance and add `content_chars` plus `content_truncated`, so clients
+can distinguish a complete message from a preview without parsing prose.
+
 **Cloudflare Worker (`bun run dev` / `bun run deploy`):** create `mcp/.dev.vars`:
 
 ```

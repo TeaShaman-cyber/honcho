@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fetch } from "./http.ts";
+import { envBindings, fetch } from "./http.ts";
 
 const origin = "http://127.0.0.1:3000";
 
@@ -29,6 +29,17 @@ function mcpPost(headers: Record<string, string>, body: unknown) {
     }),
   );
 }
+
+test("HTTP host forwards the message content limit into request config", () => {
+  const previous = process.env.MCP_MAX_MESSAGE_CONTENT_CHARS;
+  process.env.MCP_MAX_MESSAGE_CONTENT_CHARS = "321";
+  try {
+    expect(envBindings().MCP_MAX_MESSAGE_CONTENT_CHARS).toBe("321");
+  } finally {
+    if (previous === undefined) delete process.env.MCP_MAX_MESSAGE_CONTENT_CHARS;
+    else process.env.MCP_MAX_MESSAGE_CONTENT_CHARS = previous;
+  }
+});
 
 test("established sessions require the initialize bearer", async () => {
   const init = await mcpPost(

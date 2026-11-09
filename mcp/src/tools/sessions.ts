@@ -399,7 +399,7 @@ export function register(server: McpServer, ctx: ToolContext) {
         const session = await ctx.clientFor(workspace_id).session(session_id);
         const page = await session.messages({ filters, page: pageNum, size, reverse });
         return textResult({
-          messages: formatMessages(page.items),
+          messages: formatMessages(page.items, ctx.config.maxMessageContentChars),
           total: page.total,
           page: page.page,
           pages: page.pages,
@@ -433,7 +433,7 @@ export function register(server: McpServer, ctx: ToolContext) {
       try {
         const session = await ctx.clientFor(workspace_id).session(session_id);
         const message = await session.getMessage(message_id);
-        return textResult(formatMessage(message));
+        return textResult(formatMessage(message, ctx.config.maxMessageContentChars));
       } catch (e) {
         return failedResult(ctx, `Failed to get message`, e);
       }
@@ -515,7 +515,7 @@ export function register(server: McpServer, ctx: ToolContext) {
         return textResult({
           session_id: context.sessionId,
           summary: context.summary,
-          messages: formatMessages(context.messages),
+          messages: formatMessages(context.messages, ctx.config.maxMessageContentChars),
           ...(peer_target
             ? {
                 peer_representation: context.peerRepresentation,

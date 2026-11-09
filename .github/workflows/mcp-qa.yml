@@ -1,0 +1,35 @@
+name: MCP QA
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+    paths:
+      - "mcp/**"
+      - ".github/workflows/mcp-qa.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "mcp/**"
+      - ".github/workflows/mcp-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Run deterministic MCP QA
+        run: docker build --target qa --tag honcho-mcp-qa:${{ github.sha }} mcp
+
+      - name: Build production MCP image
+        run: docker build --tag honcho-mcp:${{ github.sha }} mcp
