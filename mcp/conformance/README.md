@@ -49,3 +49,20 @@ before the production container can be replaced. An isolated GitHub PR
 is not a deployment. Keep the official 2026 stateless failures visible
 even when a narrow smoke turns green. Do not replace the Honcho data
 backend or introduce a federation layer in this protocol migration.
+
+
+## Distinguish protocol failures from unavailable official fixtures
+
+The official 2026 stateless runner requires diagnostic tool names that are
+not part of the Honcho public tool API. CI does not add test-only tools to
+the public server to manufacture an all-green result. Instead it classifies
+the exact checks.json by outcome and preserves the runner exit code:
+- FAIL_PROTOCOL_CHECKS: at least one real protocol check failed.
+- PARTIAL_MISSING_FIXTURES: no confirmed protocol failure, but required
+  diagnostic probes could not run.
+- PARTIAL_UNVERIFIED: checks have warnings or skips; never full pass.
+- PASS_SCENARIO_ONLY: one scenario passed, not the whole protocol.
+- UNKNOWN_*: incomplete/missing evidence or unexplained runner error.
+
+Counts, blocking IDs and both original and derived artifacts are retained.
+The conformance runner's raw errors and exact source SHA remain authoritative.

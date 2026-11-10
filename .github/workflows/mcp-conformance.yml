@@ -29,8 +29,8 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Verify local protocol adapter
-        run: node --test mcp/conformance/auth-proxy.test.mjs
+      - name: Verify local protocol adapter and auditable outcome classifier
+        run: node --test mcp/conformance/*.test.mjs
 
       - name: Build isolated Bun MCP server
         run: docker build --target runtime --tag honcho-mcp:conformance-${{ github.event.pull_request.head.sha || github.sha }} mcp
@@ -110,12 +110,7 @@ jobs:
             > results/modern-stateless.log 2>&1
           code=$?
           set -e
-          if [[ "$code" -eq 0 ]]; then
-            echo "MODERN_2026_SINGLE_SCENARIO=PASS; not full modern conformance" | tee results/modern-status.txt
-          else
-            echo "MODERN_2026_SINGLE_SCENARIO=FAIL; unsupported/new-era gap, separate migration" | tee results/modern-status.txt
-          fi
-          printf 'Modern scenario exit code: %s\n' "$code" >> results/modern-status.txt
+          node mcp/conformance/classify.mjs results/modern-stateless "$code"             results/modern-classification.json | tee results/modern-status.txt
           tail -25 results/modern-stateless.log
           cat results/modern-status.txt >> "$GITHUB_STEP_SUMMARY"
 
