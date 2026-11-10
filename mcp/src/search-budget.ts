@@ -76,10 +76,14 @@ function addBestFit(
       ? [item, { ...item, metadata: null, metadata_omitted: true }]
       : [item];
 
+  // Preserve all message content before sacrificing any of it:
+  // first attempt every full-content alternative, including metadata omission.
   for (const candidate of alternatives) {
     if (tryAdd(result, kind, candidate, maxBytes)) return;
+  }
 
-    // Search the largest safely representable prefix by Unicode code points.
+  for (const candidate of alternatives) {
+    // Only now search the largest representable content prefix by code points.
     // Counting the final serialized JSON captures escaping and UTF-8 width.
     const chars = Array.from(originalContent);
     let low = 1;
