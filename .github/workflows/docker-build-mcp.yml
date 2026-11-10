@@ -38,9 +38,22 @@ jobs:
         uses: docker/metadata-action@v5.5.1
         with:
           images: ${{ steps.image.outputs.ref }}
+          flavor: |
+            latest=false
           tags: |
             type=sha,format=long,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Verify only the source-commit tag is published
+        shell: bash
+        env:
+          MCP_IMAGE: ${{ steps.image.outputs.ref }}
+          MCP_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          expected="${MCP_IMAGE}:sha-${GITHUB_SHA}"
+          if [[ "${MCP_TAGS}" != "${expected}" ]]; then
+            echo "::error::Expected exactly one source-commit MCP tag, with no latest or moving alias"
+            exit 1
+          fi
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.1.0
         with:
