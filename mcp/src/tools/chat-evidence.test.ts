@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
+import { Client } from "@modelcontextprotocol/client";
 import type { Honcho } from "@honcho-ai/sdk";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { honchoClients } from "../config.js";
 import { register as registerPeers } from "./peers.js";
 import { register as registerWorkspace } from "./workspace.js";

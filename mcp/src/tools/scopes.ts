@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Scope } from "@honcho-ai/sdk";
 import type { Honcho } from "@honcho-ai/sdk";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { ToolContext } from "../types.js";
 import { textResult, workspaceIdSchema, failedResult } from "../types.js";
 
@@ -44,11 +44,11 @@ export function register(server: McpServer, ctx: ToolContext) {
         "A scope is a named set of sessions that acts as a recall boundary: chat with scope=<name> answers only from that scope's sessions.",
         "Returns each scope's id, metadata, and created_at.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        page: pageSchema,
-        size: sizeSchema,
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              page: pageSchema,
+              size: sizeSchema,
+            }),
     },
     async ({ workspace_id, page: pageNum, size }) => {
       try {
@@ -83,16 +83,16 @@ export function register(server: McpServer, ctx: ToolContext) {
         "A scope is a named set of sessions that acts as a recall boundary. Optional metadata (e.g. a label, description, example queries) is stored with it.",
         "Sessions are added separately with add_sessions_to_scope. Returns the scope's id, metadata, and created_at.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        scope_id: z
-          .string()
-          .describe("Scope name, unique within the workspace (e.g. 'therapy', 'honcho-core')."),
-        metadata: z
-          .looseObject({})
-          .optional()
-          .describe("Optional metadata to store with the scope."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              scope_id: z
+                .string()
+                .describe("Scope name, unique within the workspace (e.g. 'therapy', 'honcho-core')."),
+              metadata: z
+                .looseObject({})
+                .optional()
+                .describe("Optional metadata to store with the scope."),
+            }),
     },
     async ({ workspace_id, scope_id, metadata }) => {
       try {
@@ -124,15 +124,15 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Sessions that already hold messages are backfilled into the scope asynchronously — poll get_scope_status before relying on scoped recall for them.",
         "At most 100 sessions per call.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        scope_id: z.string().describe("The scope to add sessions to."),
-        session_ids: z
-          .array(z.string())
-          .min(1)
-          .max(100)
-          .describe("Session IDs to add (max 100)."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              scope_id: z.string().describe("The scope to add sessions to."),
+              session_ids: z
+                .array(z.string())
+                .min(1)
+                .max(100)
+                .describe("Session IDs to add (max 100)."),
+            }),
     },
     async ({ workspace_id, scope_id, session_ids }) => {
       try {
@@ -158,11 +158,11 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Remove a session from a scope.",
         "Conclusions derived while it was a member are reconciled out asynchronously; the session itself is untouched.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        scope_id: z.string().describe("The scope to remove the session from."),
-        session_id: z.string().describe("The session to remove."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              scope_id: z.string().describe("The scope to remove the session from."),
+              session_id: z.string().describe("The session to remove."),
+            }),
     },
     async ({ workspace_id, scope_id, session_id }) => {
       try {
@@ -188,10 +188,10 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Each entry is pending, completed, or failed. Only sessions with a backfill enqueued appear, so an empty result means nothing is outstanding.",
         "Use this after add_sessions_to_scope to tell 'the scope hasn't caught up yet' apart from 'there is nothing to recall'.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        scope_id: z.string().describe("The scope to check."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              scope_id: z.string().describe("The scope to check."),
+            }),
     },
     async ({ workspace_id, scope_id }) => {
       try {
@@ -227,12 +227,12 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Use this to see which conversations a recall boundary covers.",
         "Returns session IDs with pagination metadata.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        scope_id: z.string().describe("The scope to list sessions for."),
-        page: pageSchema,
-        size: sizeSchema,
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              scope_id: z.string().describe("The scope to list sessions for."),
+              page: pageSchema,
+              size: sizeSchema,
+            }),
     },
     async ({ workspace_id, scope_id, page: pageNum, size }) => {
       try {

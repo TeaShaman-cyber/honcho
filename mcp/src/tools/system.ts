@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { ToolContext } from "../types.js";
 import { textResult, workspaceIdSchema, failedResult } from "../types.js";
 
@@ -18,20 +18,20 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Dreams consolidate observations into higher-level insights and update peer cards.",
         "Use this after a long conversation to improve Honcho's memory quality.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        peer_id: z.string().describe("The observer peer to dream for."),
-        target_peer_id: z
-          .string()
-          .optional()
-          .describe(
-            "Optional: dream about this target peer. Omit for self-reflection.",
-          ),
-        session_id: z
-          .string()
-          .optional()
-          .describe("Optional: scope the dream to a session."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              peer_id: z.string().describe("The observer peer to dream for."),
+              target_peer_id: z
+                .string()
+                .optional()
+                .describe(
+                  "Optional: dream about this target peer. Omit for self-reflection.",
+                ),
+              session_id: z
+                .string()
+                .optional()
+                .describe("Optional: scope the dream to a session."),
+            }),
     },
     async ({ workspace_id, peer_id, target_peer_id, session_id }) => {
       try {
@@ -60,9 +60,9 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Use this to check if Honcho is still processing messages before querying for insights.",
         "Returns work unit counts: total, completed, in-progress, and pending.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+            }),
     },
     async ({ workspace_id }) => {
       try {

@@ -29,3 +29,23 @@ Review the results artifact and exact commit SHA before trusting the report.
 
 For reproducibility the workload uses Node.js 22 and builds the existing
 mcp/Dockerfile runtime stage. No deployed endpoint is involved.
+
+
+## 2026 SDK transition candidate (Honcho #10)
+
+The modernization candidate replaces the old TypeScript v1 SDK with the
+official v2 packages. It uses the SDK createMcpHandler HTTP factory for
+request-local modern (2026-07-28) metadata, discovery, version negotiation
+and error handling, with its built-in stateless 2025 compatibility mode
+only for the empirically observed Hermes transition. The Cloudflare
+Worker entry and stdio entry must also be compiled/checked: this repo
+contains multiple MCP hosts, not just the Dockerized Bun HTTP entry.
+
+Do not interpret a passing legacy initializer as proof of the older
+sessionful MCP contract: v2 stateless legacy has no Mcp-Session-Id and
+cannot promise historic session-resumption behavior. Real Hermes 1.18.2
+and the separate Python recall hook still require integration verification
+before the production container can be replaced. An isolated GitHub PR
+is not a deployment. Keep the official 2026 stateless failures visible
+even when a narrow smoke turns green. Do not replace the Honcho data
+backend or introduce a federation layer in this protocol migration.

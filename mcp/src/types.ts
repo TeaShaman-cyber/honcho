@@ -7,7 +7,7 @@ import type {
   SessionSummaries,
 } from "@honcho-ai/sdk";
 import { HonchoError } from "@honcho-ai/sdk";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { DEFAULT_MAX_MESSAGE_CONTENT_CHARS, type HonchoConfig } from "./config.js";
 
 export interface ToolContext {

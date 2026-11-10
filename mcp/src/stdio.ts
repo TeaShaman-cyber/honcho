@@ -1,4 +1,4 @@
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as Sentry from "@sentry/bun";
 import { honchoClients, parseEnvConfig, sentryOptions } from "./config.js";
 import { createServer } from "./server.js";
@@ -19,8 +19,7 @@ try {
     MCP_MAX_MESSAGE_CONTENT_CHARS: process.env.MCP_MAX_MESSAGE_CONTENT_CHARS,
   });
   // No HTTP caller on stdio, so only X-Honcho-Host is sent.
-  const server = createServer({ config, ...honchoClients(config) });
-  await server.connect(new StdioServerTransport());
+  await serveStdio(() => createServer({ config, ...honchoClients(config) }));
 } catch (e) {
   const message = e instanceof Error ? e.message : String(e);
   console.error(message);
