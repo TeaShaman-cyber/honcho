@@ -6,6 +6,13 @@ on:
       - main
     tags:
       - v*
+    # On main, skip root Python image publishing for MCP-only changes.
+    # Paths filters are ignored for tag pushes: keep v* release behavior.
+    paths-ignore:
+      - "mcp/**"
+      - ".github/workflows/mcp-*.yml"
+      - ".github/workflows/docker-build-mcp.yml"
+      - ".github/workflows/docker-build.yml"
 
 env:
   REGISTRY: ghcr.io
