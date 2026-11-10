@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { boundedSearchResponse } from "../search-budget.js";
 import {
   BadRequestError,
   HonchoError,
@@ -225,6 +226,15 @@ export function register(server: McpServer, ctx: ToolContext) {
           .describe(
             'Optional: filters for the message search, e.g. {"created_at": {"gte": "2026-01-01"}}. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
           ),
+        max_result_json_bytes: z
+          .number()
+          .int()
+          .min(512)
+          .max(65536)
+          .optional()
+          .describe(
+            "Opt-in max UTF-8 bytes in the MCP search JSON text payload. Adds explicit returned/omitted counts and conclusion source IDs. Default: legacy response unchanged. Not a bound on the enclosing JSON-RPC frame.",
+          ),
         conclusion_top_k: z
           .number()
           .optional()
@@ -247,6 +257,7 @@ export function register(server: McpServer, ctx: ToolContext) {
       message_filters,
       conclusion_top_k,
       conclusion_filters,
+      max_result_json_bytes,
     }) => {
       if (scope !== undefined && session_id) {
         return errorResult(
@@ -312,6 +323,16 @@ export function register(server: McpServer, ctx: ToolContext) {
           searchMessages(),
           searchConclusions(),
         ]);
+        if (max_result_json_bytes !== undefined) {
+          return textResult(
+            boundedSearchResponse(
+              messages,
+              conclusions,
+              max_result_json_bytes,
+              ctx.config.maxMessageContentChars,
+            ),
+          );
+        }
         return textResult({
           messages: formatMessages(messages, ctx.config.maxMessageContentChars),
           conclusions: conclusions.map((c) => ({
