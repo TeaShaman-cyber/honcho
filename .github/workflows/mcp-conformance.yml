@@ -1,0 +1,139 @@
+name: MCP protocol conformance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "mcp/**"
+      - ".github/workflows/mcp-conformance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-and-modern-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CONFORMANCE_VERSION: "0.2.0-alpha.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify local protocol adapter
+        run: node --test mcp/conformance/auth-proxy.test.mjs
+
+      - name: Build isolated Bun MCP server
+        run: docker build --target runtime --tag honcho-mcp:conformance-${{ github.sha }} mcp
+
+      - name: Start isolated HTTP server (no Honcho backend)
+        run: |
+          set -euo pipefail
+          docker run --detach --rm --name honcho-mcp-conformance \
+            --publish 127.0.0.1:3000:3000 \
+            -e HONCHO_API_URL=http://127.0.0.1:8000 \
+            honcho-mcp:conformance-${{ github.sha }}
+          for attempt in $(seq 1 25); do
+            if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs honcho-mcp-conformance
+          exit 1
+
+      - name: Launch loopback-only bearer test adapter
+        run: |
+          set -euo pipefail
+          node mcp/conformance/auth-proxy.mjs >/tmp/mcp-conformance-proxy.log 2>&1 &
+          echo $! >/tmp/mcp-conformance-proxy.pid
+          for attempt in $(seq 1 15); do
+            if curl --fail --silent http://127.0.0.1:3001/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/mcp-conformance-proxy.log
+          exit 1
+
+      - name: Verify pinned runner covers modern requirements
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          npx --yes @modelcontextprotocol/conformance@${CONFORMANCE_VERSION} \
+            list --requirements 2026-07-28 >results/official-modern-requirements.txt
+          grep -F server-stateless results/official-modern-requirements.txt
+
+      - name: Legacy 2025-11-25 initialize smoke
+        run: |
+          set -euo pipefail
+          npx --yes @modelcontextprotocol/conformance@${CONFORMANCE_VERSION} \
+            server --url http://127.0.0.1:3001/mcp \
+            --spec-version 2025-11-25 --scenario server-initialize \
+            --timeout 12000 --output-dir results/legacy-initialize \
+            > results/legacy-initialize.log 2>&1 || {
+              tail -60 results/legacy-initialize.log
+              exit 1
+            }
+          tail -25 results/legacy-initialize.log
+
+      - name: Legacy 2025-11-25 tools-list smoke
+        run: |
+          set -euo pipefail
+          npx --yes @modelcontextprotocol/conformance@${CONFORMANCE_VERSION} \
+            server --url http://127.0.0.1:3001/mcp \
+            --spec-version 2025-11-25 --scenario tools-list \
+            --timeout 12000 --output-dir results/legacy-tools-list \
+            > results/legacy-tools-list.log 2>&1 || {
+              tail -60 results/legacy-tools-list.log
+              exit 1
+            }
+          tail -25 results/legacy-tools-list.log
+
+      - name: Modern 2026-07-28 stateless gap (explicit non-gating audit)
+        run: |
+          set -euo pipefail
+          set +e
+          npx --yes @modelcontextprotocol/conformance@${CONFORMANCE_VERSION} \
+            server --url http://127.0.0.1:3001/mcp \
+            --spec-version 2026-07-28 --scenario server-stateless \
+            --timeout 12000 --output-dir results/modern-stateless \
+            > results/modern-stateless.log 2>&1
+          code=$?
+          set -e
+          if [[ "$code" -eq 0 ]]; then
+            echo "MODERN_2026_SINGLE_SCENARIO=PASS; not full modern conformance" | tee results/modern-status.txt
+          else
+            echo "MODERN_2026_SINGLE_SCENARIO=FAIL; unsupported/new-era gap, separate migration" | tee results/modern-status.txt
+          fi
+          printf 'Modern scenario exit code: %s\n' "$code" >> results/modern-status.txt
+          tail -25 results/modern-stateless.log
+          cat results/modern-status.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record exact scope
+        if: always()
+        run: |
+          {
+            echo "## MCP conformance audit"
+            echo "- Source SHA: ${GITHUB_SHA}"
+            echo "- Official runner pinned: ${CONFORMANCE_VERSION}"
+            echo "- Auth adapter: loopback-only synthetic bearer. OAuth NOT tested."
+            echo "- 2025-11-25: initialize and tools/list smoke, NOT full spec certification."
+            echo "- 2026-07-28: single stateless scenario, explicit separate gap, non-gating."
+            echo "- Honcho API tool behavior and stdio/Worker hosts not tested."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-conformance-${{ github.sha }}
+          path: results/
+          if-no-files-found: warn
+
+      - name: Clean up isolated processes
+        if: always()
+        run: |
+          docker stop honcho-mcp-conformance 2>/dev/null || true
+          if [[ -f /tmp/mcp-conformance-proxy.pid ]]; then
+            kill "$(cat /tmp/mcp-conformance-proxy.pid)" 2>/dev/null || true
+          fi
