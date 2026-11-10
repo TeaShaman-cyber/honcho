@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import type { ToolContext } from "./types.js";
 import { register as registerWorkspaceTools } from "./tools/workspace.js";
 import { register as registerPeerTools } from "./tools/peers.js";

@@ -2,32 +2,60 @@ import { expect, test } from "bun:test";
 import { envBindings, fetch } from "./http.ts";
 
 const origin = "http://127.0.0.1:3000";
-
-const initializeBody = {
-  jsonrpc: "2.0",
-  id: 1,
-  method: "initialize",
-  params: {
-    protocolVersion: "2024-11-05",
-    capabilities: {},
-    clientInfo: { name: "test", version: "0.0.0" },
-  },
+const meta = {
+  "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+  "io.modelcontextprotocol/clientCapabilities": {},
+  "io.modelcontextprotocol/clientInfo": { name: "hermes", version: "1.18.2" },
 };
 
-const pingBody = { jsonrpc: "2.0", id: 2, method: "ping" };
+function mcpPost(headers: Record<string, string>, body: Record<string, unknown>) {
+  return fetch(new Request(origin + "/mcp", {
+    method: "POST",
+    headers: {
+      Accept: "application/json, text/event-stream",
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  }));
+}
 
-function mcpPost(headers: Record<string, string>, body: unknown) {
-  return fetch(
-    new Request(`${origin}/mcp`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json, text/event-stream",
-        "Content-Type": "application/json",
-        ...headers,
-      },
-      body: JSON.stringify(body),
-    }),
-  );
+function modernPost(headers: Record<string, string>, body: {
+  jsonrpc: string;
+  id: number;
+  method: string;
+  params?: Record<string, unknown>;
+}) {
+  const toolName = body.method === "tools/call" ? body.params?.name : undefined;
+  return mcpPost({
+    "MCP-Protocol-Version": "2026-07-28",
+    "Mcp-Method": body.method,
+    ...(typeof toolName === "string" ? { "Mcp-Name": toolName } : {}),
+    ...headers,
+  }, { ...body, params: { ...body.params, _meta: meta } });
+}
+
+const legacyInitialize = {
+  jsonrpc: "2.0", id: 1, method: "initialize",
+  params: {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "hermes", version: "1.18.2" },
+  },
+};
+const listWorkspaces = {
+  jsonrpc: "2.0", id: 4, method: "tools/call",
+  params: { name: "list_workspaces", arguments: {} },
+};
+
+function upstream(status: number, body: unknown) {
+  return async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
 }
 
 test("HTTP host forwards the message content limit into request config", () => {
@@ -41,57 +69,24 @@ test("HTTP host forwards the message content limit into request config", () => {
   }
 });
 
-test("established sessions require the initialize bearer", async () => {
-  const init = await mcpPost(
-    { Authorization: "Bearer key-a" },
-    initializeBody,
-  );
+test("transitional legacy initialize works but does not retain a cross-request session", async () => {
+  const init = await mcpPost({ Authorization: "Bearer key-a" }, legacyInitialize);
   expect(init.status).toBe(200);
-  const sessionId = init.headers.get("mcp-session-id");
-  expect(sessionId).toBeTruthy();
-
-  const missing = await mcpPost({ "mcp-session-id": sessionId! }, pingBody);
+  expect(init.headers.get("mcp-session-id")).toBeNull();
+  const missing = await modernPost({}, { jsonrpc: "2.0", id: 10, method: "tools/list" });
   expect(missing.status).toBe(401);
-
-  const wrong = await mcpPost(
-    { Authorization: "Bearer key-b", "mcp-session-id": sessionId! },
-    pingBody,
-  );
-  expect(wrong.status).toBe(401);
-
-  const ok = await mcpPost(
-    { Authorization: "Bearer key-a", "mcp-session-id": sessionId! },
-    pingBody,
-  );
-  expect(ok.status).toBe(200);
+  const other = await modernPost({ Authorization: "Bearer key-b" }, {
+    jsonrpc: "2.0", id: 11, method: "tools/list",
+  });
+  expect(other.status).toBe(200);
 });
 
-test("unknown or expired session ID returns 404 so clients can reinitialize", async () => {
-  // POST carrying a stale session ID with a non-initialize body must be 404,
-  // not 400: the Streamable HTTP spec says a terminated session MUST answer
-  // requests containing its ID with 404, which tells the client to
-  // reinitialize (modelcontextprotocol.io/specification/2025-03-26/basic/transports).
-  const stalePost = await mcpPost(
-    { "mcp-session-id": "00000000-0000-0000-0000-000000000000" },
-    pingBody,
+test("2026 rejects conflicting protocol headers rather than silently downgrading", async () => {
+  const response = await modernPost(
+    { Authorization: "Bearer test", "MCP-Protocol-Version": "2099-01-01" },
+    { jsonrpc: "2.0", id: 12, method: "tools/list" },
   );
-  expect(stalePost.status).toBe(404);
-
-  // GET carrying a stale session ID must also be 404.
-  const staleGet = await fetch(
-    new Request(`${origin}/mcp`, {
-      method: "GET",
-      headers: {
-        Accept: "text/event-stream",
-        "mcp-session-id": "00000000-0000-0000-0000-000000000000",
-      },
-    }),
-  );
-  expect(staleGet.status).toBe(404);
-
-  // POST with no session ID at all and a non-initialize body stays 400.
-  const noSession = await mcpPost({}, pingBody);
-  expect(noSession.status).toBe(400);
+  expect(response.status).toBe(400);
 });
 
 test("MCP requests disable the idle timeout", async () => {
@@ -101,155 +96,93 @@ test("MCP requests disable the idle timeout", async () => {
       if (seconds === 0) disabled.push(new URL(request.url).pathname);
     },
   };
-  await fetch(new Request(`${origin}/health`), server);
-  await fetch(
-    new Request(`${origin}/mcp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pingBody),
-    }),
-    server,
-  );
+  await fetch(new Request(origin + "/health"), server);
+  await fetch(new Request(origin + "/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" }),
+  }), server);
   expect(disabled).toEqual(["/mcp"]);
 });
 
-test("a session's tool calls carry the caller's plugin header", async () => {
+test("a stateless tool call carries the caller's plugin header", async () => {
   const identity = {
     Authorization: "Bearer key-c",
     "User-Agent": "Cursor/1.0.0",
     "X-Honcho-Plugin": "cursor-honcho/0.2.0",
   };
-  const init = await mcpPost(identity, initializeBody);
-  expect(init.status).toBe(200);
-  const sessionId = init.headers.get("mcp-session-id")!;
-
   const seen: Headers[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = async (_input, reqInit) => {
     seen.push(new Headers(reqInit?.headers as HeadersInit));
-    return new Response(
-      JSON.stringify({ items: [], page: 1, size: 10, total: 0, pages: 0 }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({
+      items: [], page: 1, size: 10, total: 0, pages: 0,
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
   };
   try {
-    const call = await mcpPost(
-      { ...identity, "mcp-session-id": sessionId },
-      {
-        jsonrpc: "2.0",
-        id: 3,
-        method: "tools/call",
-        params: { name: "list_workspaces", arguments: {} },
-      },
-    );
+    const call = await modernPost(identity, {
+      jsonrpc: "2.0", id: 3, method: "tools/call",
+      params: { name: "list_workspaces", arguments: {} },
+    });
     expect(call.status).toBe(200);
     await call.text();
   } finally {
     globalThis.fetch = original;
   }
-
   expect(seen.length).toBeGreaterThan(0);
   expect(seen[0].get("X-Honcho-Plugin")).toBe("cursor-honcho/0.2.0 (Cursor/1.0.0)");
   expect(seen[0].get("X-Honcho-Host")).toMatch(/^honcho-mcp\//);
 });
 
-const listWorkspacesBody = {
-  jsonrpc: "2.0",
-  id: 4,
-  method: "tools/call",
-  params: { name: "list_workspaces", arguments: {} },
-};
-
-function upstream(status: number, body: unknown) {
-  return async () => {
-    // Long enough that calls sent together are all in flight at once.
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-}
-
-test("a rejected OAuth token is answered with HTTP 401 invalid_token and the session is dropped", async () => {
+test("concurrent stateless OAuth access token failures independently return 401", async () => {
   const headers = { Authorization: "Bearer hch-at-expired" };
-  const init = await mcpPost(headers, initializeBody);
-  expect(init.status).toBe(200);
-  const sessionId = init.headers.get("mcp-session-id")!;
-  const inSession = { ...headers, "mcp-session-id": sessionId };
-
   const original = globalThis.fetch;
   globalThis.fetch = upstream(401, { detail: "Invalid or expired access token" });
   try {
-    // Two overlapping calls, as when an agent runs tools in parallel: both
-    // get the 401, and closing the session must not strand the second one.
-    const calls = await Promise.all([
-      mcpPost(inSession, listWorkspacesBody),
-      mcpPost(inSession, { ...listWorkspacesBody, id: 5 }),
+    const responses = await Promise.all([
+      modernPost(headers, listWorkspaces),
+      modernPost(headers, { ...listWorkspaces, id: 5 }),
     ]);
-    for (const call of calls) {
-      expect(call.status).toBe(401);
-      const challenge = call.headers.get("WWW-Authenticate") ?? "";
-      expect(challenge).toContain('error="invalid_token"');
-      expect(challenge).toContain("resource_metadata=");
+    for (const r of responses) {
+      expect(r.status).toBe(401);
+      expect(r.headers.get("WWW-Authenticate") || "").toContain('error="invalid_token"');
     }
   } finally {
     globalThis.fetch = original;
   }
-
-  // The session is gone, so its id now gets 404 and the client has to start
-  // a new session with its refreshed token.
-  const stale = await mcpPost(inSession, pingBody);
-  expect(stale.status).toBe(404);
 });
 
-test("a 401 that is not a dead OAuth token stays a tool error and keeps the session", async () => {
+test("a non-expired OAuth permission error or API key 401 stays a tool error", async () => {
   const cases = [
-    // A bad API key: the client has nothing to refresh.
     { token: "hch-plain-api-key", detail: "Invalid JWT" },
-    // A live OAuth token on a route it may not use: refreshing won't help.
     { token: "hch-at-live", detail: "Resource requires admin privileges" },
   ];
-  for (const { token, detail } of cases) {
-    const headers = { Authorization: `Bearer ${token}` };
-    const init = await mcpPost(headers, initializeBody);
-    const sessionId = init.headers.get("mcp-session-id")!;
-    const inSession = { ...headers, "mcp-session-id": sessionId };
-
+  for (const item of cases) {
     const original = globalThis.fetch;
-    globalThis.fetch = upstream(401, { detail });
+    globalThis.fetch = upstream(401, { detail: item.detail });
     try {
-      const call = await mcpPost(inSession, listWorkspacesBody);
-      expect(call.status).toBe(200);
-      const body = (await call.json()) as { result: { isError?: boolean } };
-      expect(body.result.isError).toBe(true);
+      const r = await modernPost({ Authorization: "Bearer " + item.token }, listWorkspaces);
+      expect(r.status).toBe(200);
+      const payload = await r.json() as { result: { isError?: boolean } };
+      expect(payload.result.isError).toBe(true);
     } finally {
       globalThis.fetch = original;
     }
-
-    const ping = await mcpPost(inSession, pingBody);
-    expect(ping.status).toBe(200);
   }
 });
 
-test("a successful write overlapping a rejected read keeps its 200", async () => {
+test("a successful write overlapping a rejected read retains its 200", async () => {
   const headers = { Authorization: "Bearer hch-at-expiring" };
-  const init = await mcpPost(headers, initializeBody);
-  const inSession = {
-    ...headers,
-    "mcp-session-id": init.headers.get("mcp-session-id")!,
-  };
-
-  // The insertion is accepted before the token dies. Its 201 is held until
-  // the read has been refused, so the rejection lands while it is in flight.
   let release!: () => void;
   const held = new Promise<void>((resolve) => (release = resolve));
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json" },
+      status, headers: { "Content-Type": "application/json" },
     });
-  const row = { id: "x", metadata: {}, configuration: {}, created_at: "2026-10-19T00:00:00Z" };
+  const row = {
+    id: "x", metadata: {}, configuration: {},
+    created_at: "2026-10-19T00:00:00Z",
+  };
   const original = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
@@ -260,23 +193,20 @@ test("a successful write overlapping a rejected read keeps its 200", async () =>
       await held;
       return json(201, [{ ...row, content: "hi", peer_id: "p", session_id: "s" }]);
     }
-    return json(200, row); // workspace, session and peer get-or-create
+    return json(200, row);
   };
   try {
-    const write = mcpPost(inSession, {
-      jsonrpc: "2.0",
-      id: 6,
-      method: "tools/call",
+    const write = modernPost(headers, {
+      jsonrpc: "2.0", id: 6, method: "tools/call",
       params: {
         name: "add_messages_to_session",
         arguments: {
-          workspace_id: "w",
-          session_id: "s",
+          workspace_id: "w", session_id: "s",
           messages: [{ peer_id: "p", content: "hi" }],
         },
       },
     });
-    const read = await mcpPost(inSession, listWorkspacesBody);
+    const read = await modernPost(headers, listWorkspaces);
     expect(read.status).toBe(401);
     release();
     const response = await write;
@@ -284,5 +214,6 @@ test("a successful write overlapping a rejected read keeps its 200", async () =>
     expect(await response.text()).toContain("Messages added to session successfully");
   } finally {
     globalThis.fetch = original;
+    release();
   }
 });

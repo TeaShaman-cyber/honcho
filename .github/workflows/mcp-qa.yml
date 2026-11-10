@@ -33,3 +33,28 @@ jobs:
 
       - name: Build production MCP image
         run: docker build --tag honcho-mcp:${{ github.sha }} mcp
+
+
+  worker-bundle:
+    # TypeScript typecheck does not prove that the Cloudflare Worker entry
+    # actually bundles after the MCP SDK v1 -> v2 migration.
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install exact Bun lockfile
+        working-directory: mcp
+        run: bun install --frozen-lockfile
+
+      - name: Compile Cloudflare Worker without publishing
+        working-directory: mcp
+        run: bunx wrangler deploy --dry-run --outdir /tmp/honcho-mcp-worker-bundle

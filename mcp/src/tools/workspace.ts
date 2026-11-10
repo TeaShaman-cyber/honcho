@@ -7,7 +7,7 @@ import {
   type PageResponse,
   type WorkspaceResponse,
 } from "@honcho-ai/sdk";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { ToolContext } from "../types.js";
 import { resolveWorkspaceId } from "../config.js";
 import {
@@ -56,9 +56,9 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Aggregates workspace metadata, configuration, peer IDs, and session IDs.",
         "Returns the first page of peers/sessions with total counts.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+            }),
     },
     async ({ workspace_id }) => {
       try {
@@ -100,21 +100,21 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Use this only when the header is unset and you don't already know the workspace ID.",
         "Returns each workspace's id, metadata, and created_at. If none fit, call create_workspace.",
       ].join("\n"),
-      inputSchema: {
-        page: z
-          .number()
-          .int()
-          .min(1)
-          .optional()
-          .describe("Page number (1-indexed)."),
-        size: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .optional()
-          .describe("Results per page (max 100)."),
-      },
+      inputSchema: z.object({
+              page: z
+                .number()
+                .int()
+                .min(1)
+                .optional()
+                .describe("Page number (1-indexed)."),
+              size: z
+                .number()
+                .int()
+                .min(1)
+                .max(100)
+                .optional()
+                .describe("Results per page (max 100)."),
+            }),
     },
     async ({ page, size }) => {
       try {
@@ -152,15 +152,15 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Optional metadata helps future list_workspaces calls identify what the workspace is for.",
         "Returns the workspace id, metadata, and created_at.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        metadata: z
-          .looseObject({})
-          .optional()
-          .describe(
-            "Optional key-value metadata to store on the workspace (e.g. project, purpose).",
-          ),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              metadata: z
+                .looseObject({})
+                .optional()
+                .describe(
+                  "Optional key-value metadata to store on the workspace (e.g. project, purpose).",
+                ),
+            }),
     },
     async ({ workspace_id, metadata }) => {
       try {
@@ -199,53 +199,53 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Conclusions require peer_id (self-conclusions are searched; conclusion IDs are usable with delete_conclusion).",
         "Returns {messages, conclusions}.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        query: z.string().describe("Search query."),
-        peer_id: z
-          .string()
-          .optional()
-          .describe("Optional: scope search to messages by this peer."),
-        session_id: z
-          .string()
-          .optional()
-          .describe("Optional: scope search to messages in this session."),
-        scope: z
-          .string()
-          .optional()
-          .describe(
-            "Optional: restrict message search to this scope's member sessions. A scope with no members matches nothing. Mutually exclusive with session_id.",
-          ),
-        message_limit: z
-          .number()
-          .optional()
-          .describe("Optional: max message results (1-100, default 10)."),
-        message_filters: z
-          .looseObject({})
-          .optional()
-          .describe(
-            'Optional: filters for the message search, e.g. {"created_at": {"gte": "2026-01-01"}}. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
-          ),
-        max_result_json_bytes: z
-          .number()
-          .int()
-          .min(512)
-          .max(65536)
-          .optional()
-          .describe(
-            "Opt-in max UTF-8 bytes in the MCP search JSON text payload. Adds explicit returned/omitted counts and conclusion source IDs. Default: legacy response unchanged. Not a bound on the enclosing JSON-RPC frame.",
-          ),
-        conclusion_top_k: z
-          .number()
-          .optional()
-          .describe("Optional: max conclusion results (default 10)."),
-        conclusion_filters: z
-          .looseObject({})
-          .optional()
-          .describe(
-            'Optional: filters for the conclusion search, e.g. {"level": ["deductive", "inductive"]} to only return conclusions derived during dreaming. Levels: explicit (extracted directly from messages), deductive, inductive, contradiction. The session_id param does not scope conclusions; use {"session_id": ...} here for that.',
-          ),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              query: z.string().describe("Search query."),
+              peer_id: z
+                .string()
+                .optional()
+                .describe("Optional: scope search to messages by this peer."),
+              session_id: z
+                .string()
+                .optional()
+                .describe("Optional: scope search to messages in this session."),
+              scope: z
+                .string()
+                .optional()
+                .describe(
+                  "Optional: restrict message search to this scope's member sessions. A scope with no members matches nothing. Mutually exclusive with session_id.",
+                ),
+              message_limit: z
+                .number()
+                .optional()
+                .describe("Optional: max message results (1-100, default 10)."),
+              message_filters: z
+                .looseObject({})
+                .optional()
+                .describe(
+                  'Optional: filters for the message search, e.g. {"created_at": {"gte": "2026-01-01"}}. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
+                ),
+              max_result_json_bytes: z
+                .number()
+                .int()
+                .min(512)
+                .max(65536)
+                .optional()
+                .describe(
+                  "Opt-in max UTF-8 bytes in the MCP search JSON text payload. Adds explicit returned/omitted counts and conclusion source IDs. Default: legacy response unchanged. Not a bound on the enclosing JSON-RPC frame.",
+                ),
+              conclusion_top_k: z
+                .number()
+                .optional()
+                .describe("Optional: max conclusion results (default 10)."),
+              conclusion_filters: z
+                .looseObject({})
+                .optional()
+                .describe(
+                  'Optional: filters for the conclusion search, e.g. {"level": ["deductive", "inductive"]} to only return conclusions derived during dreaming. Levels: explicit (extracted directly from messages), deductive, inductive, contradiction. The session_id param does not scope conclusions; use {"session_id": ...} here for that.',
+                ),
+            }),
     },
     async ({
       workspace_id,
@@ -363,30 +363,30 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Returns a natural-language answer, or 'None' if no relevant information exists.",
         "With `include_evidence`, returns an object instead: the answer plus what the agent read to produce it.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        query: z.string().describe("Natural-language question."),
-        session_id: z
-          .string()
-          .optional()
-          .describe("Optional: scope the query to a specific session."),
-        scope: z
-          .union([z.string(), z.array(z.string()).max(100)])
-          .optional()
-          .describe(
-            "Optional: confine recall to a scope. A single scope name answers from that scope's own reasoned view (all conclusion levels). A list of scope names is an allowlist: explicit conclusions from the union of their sessions only.",
-          ),
-        reasoning_level: z
-          .enum(["minimal", "low", "medium", "high", "max"])
-          .optional()
-          .describe("Reasoning effort. Higher = more detailed but slower."),
-        include_evidence: z
-          .boolean()
-          .optional()
-          .describe(
-            "Return what the answer was built from: the conclusions and messages the agent read and the tools it called. Collated from what the agent accessed rather than reported by the model, so it over-reports — a listed conclusion was read, which is not proof the answer leaned on it. Costs no extra model tokens.",
-          ),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              query: z.string().describe("Natural-language question."),
+              session_id: z
+                .string()
+                .optional()
+                .describe("Optional: scope the query to a specific session."),
+              scope: z
+                .union([z.string(), z.array(z.string()).max(100)])
+                .optional()
+                .describe(
+                  "Optional: confine recall to a scope. A single scope name answers from that scope's own reasoned view (all conclusion levels). A list of scope names is an allowlist: explicit conclusions from the union of their sessions only.",
+                ),
+              reasoning_level: z
+                .enum(["minimal", "low", "medium", "high", "max"])
+                .optional()
+                .describe("Reasoning effort. Higher = more detailed but slower."),
+              include_evidence: z
+                .boolean()
+                .optional()
+                .describe(
+                  "Return what the answer was built from: the conclusions and messages the agent read and the tools it called. Collated from what the agent accessed rather than reported by the model, so it over-reports — a listed conclusion was read, which is not proof the answer leaned on it. Costs no extra model tokens.",
+                ),
+            }),
     },
     async ({
       workspace_id,
@@ -432,17 +432,17 @@ export function register(server: McpServer, ctx: ToolContext) {
         "- peer_id only: get peer metadata.",
         "- session_id only: get session metadata.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        peer_id: z
-          .string()
-          .optional()
-          .describe("Optional: get metadata for this peer."),
-        session_id: z
-          .string()
-          .optional()
-          .describe("Optional: get metadata for this session."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              peer_id: z
+                .string()
+                .optional()
+                .describe("Optional: get metadata for this peer."),
+              session_id: z
+                .string()
+                .optional()
+                .describe("Optional: get metadata for this session."),
+            }),
     },
     async ({ workspace_id, peer_id, session_id }) => {
       try {
@@ -480,20 +480,20 @@ export function register(server: McpServer, ctx: ToolContext) {
         "- peer_id only: set peer metadata.",
         "- session_id only: set session metadata.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        metadata: z
-          .looseObject({})
-          .describe("Key-value pairs to set as metadata."),
-        peer_id: z
-          .string()
-          .optional()
-          .describe("Optional: set metadata for this peer."),
-        session_id: z
-          .string()
-          .optional()
-          .describe("Optional: set metadata for this session."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              metadata: z
+                .looseObject({})
+                .describe("Key-value pairs to set as metadata."),
+              peer_id: z
+                .string()
+                .optional()
+                .describe("Optional: set metadata for this peer."),
+              session_id: z
+                .string()
+                .optional()
+                .describe("Optional: set metadata for this session."),
+            }),
     },
     async ({ workspace_id, metadata, peer_id, session_id }) => {
       try {

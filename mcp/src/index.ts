@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/cloudflare";
-import { createMcpHandler } from "agents/mcp";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import {
   HEADER_PLUGIN,
   honchoClients,
@@ -14,7 +14,7 @@ import { invalidTokenResponse } from "./types.js";
 const CORS_ORIGIN = "*";
 const CORS_METHODS = "GET, POST, DELETE, OPTIONS";
 const CORS_ALLOWED_HEADERS =
-  "Content-Type, Authorization, X-Honcho-Workspace-ID, X-Honcho-Plugin";
+  "Content-Type, Authorization, X-Honcho-Workspace-ID, X-Honcho-Plugin, Mcp-Method, Mcp-Name";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": CORS_ORIGIN,
@@ -74,7 +74,7 @@ export default Sentry.withSentry(sentryOptions, {
   async fetch(
     request: Request,
     env: Env,
-    executionCtx: ExecutionContext,
+    _executionCtx: ExecutionContext,
   ): Promise<Response> {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -114,31 +114,21 @@ export default Sentry.withSentry(sentryOptions, {
 
     try {
       let rejected = false;
-      const server = createServer({
-        config,
-        ...honchoClients(
+      const handler = createMcpHandler(
+        () => createServer({
           config,
-          identityHeaders(
-            request.headers.get("User-Agent"),
-            request.headers.get(HEADER_PLUGIN),
+          ...honchoClients(
+            config,
+            identityHeaders(
+              request.headers.get("User-Agent"),
+              request.headers.get(HEADER_PLUGIN),
+            ),
           ),
-        ),
-        onUnauthorized: () => {
-          rejected = true;
-        },
-      });
-      const handler = createMcpHandler(server, {
-        route: "/",
-        // Tool results come back as one JSON body, so the status line is
-        // decided after the tool ran and a rejected token can be a real 401.
-        enableJsonResponse: true,
-        corsOptions: {
-          origin: CORS_ORIGIN,
-          methods: CORS_METHODS,
-          headers: CORS_ALLOWED_HEADERS,
-        },
-      });
-      const response = await handler(request, env, executionCtx);
+          onUnauthorized: () => { rejected = true; },
+        }),
+        { legacy: "stateless" },
+      );
+      const response = await handler.fetch(request);
       if (rejected) {
         // The Honcho API refused this request's OAuth access token. Answer
         // 401 so the MCP client refreshes the token and retries; a tool
@@ -148,7 +138,15 @@ export default Sentry.withSentry(sentryOptions, {
           CORS_HEADERS,
         );
       }
-      return response;
+      const responseHeaders = new Headers(response.headers);
+      for (const [key, value] of Object.entries(CORS_HEADERS)) {
+        responseHeaders.set(key, value);
+      }
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      });
     } catch (e) {
       Sentry.captureException(e);
       const message =

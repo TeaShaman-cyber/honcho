@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { ToolContext } from "../types.js";
 import {
   textResult,
@@ -27,38 +27,38 @@ export function register(server: McpServer, ctx: ToolContext) {
         ATTRIBUTION_NOTE,
         "Returns conclusion objects with pagination metadata.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        peer_id: z.string().describe("The observer peer."),
-        target_peer_id: z
-          .string()
-          .optional()
-          .describe(
-            "Optional: list conclusions about this target. Omit for self-conclusions.",
-          ),
-        session_id: z
-          .string()
-          .optional()
-          .describe("Optional: only conclusions attached to this session."),
-        filters: z
-          .looseObject({})
-          .optional()
-          .describe(
-            'Optional: filter criteria, e.g. {"level": "inductive"} for pattern conclusions only, {"source_ids": {"contains": "<id>"}} for conclusions derived from a given one, or {"source_message_ids": {"contains": "<message id>"}} for conclusions that cite a given message. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
-          ),
-        page: z.number().int().min(1).optional().describe("Page number (1-indexed)."),
-        size: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .optional()
-          .describe("Results per page (max 100)."),
-        reverse: z
-          .boolean()
-          .optional()
-          .describe("Oldest first instead of the default newest first."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              peer_id: z.string().describe("The observer peer."),
+              target_peer_id: z
+                .string()
+                .optional()
+                .describe(
+                  "Optional: list conclusions about this target. Omit for self-conclusions.",
+                ),
+              session_id: z
+                .string()
+                .optional()
+                .describe("Optional: only conclusions attached to this session."),
+              filters: z
+                .looseObject({})
+                .optional()
+                .describe(
+                  'Optional: filter criteria, e.g. {"level": "inductive"} for pattern conclusions only, {"source_ids": {"contains": "<id>"}} for conclusions derived from a given one, or {"source_message_ids": {"contains": "<message id>"}} for conclusions that cite a given message. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
+                ),
+              page: z.number().int().min(1).optional().describe("Page number (1-indexed)."),
+              size: z
+                .number()
+                .int()
+                .min(1)
+                .max(100)
+                .optional()
+                .describe("Results per page (max 100)."),
+              reverse: z
+                .boolean()
+                .optional()
+                .describe("Oldest first instead of the default newest first."),
+            }),
     },
     async ({
       workspace_id,
@@ -108,25 +108,25 @@ export function register(server: McpServer, ctx: ToolContext) {
         ATTRIBUTION_NOTE,
         "Returns an array of matching conclusions ranked by relevance.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        peer_id: z.string().describe("The observer peer."),
-        query: z.string().describe("Semantic search query."),
-        target_peer_id: z
-          .string()
-          .optional()
-          .describe("Optional: search conclusions about this target."),
-        top_k: z
-          .number()
-          .optional()
-          .describe("Max results to return."),
-        filters: z
-          .looseObject({})
-          .optional()
-          .describe(
-            'Optional: filter criteria, e.g. {"level": ["deductive", "inductive"]} to only return conclusions derived during dreaming. Levels: explicit (extracted directly from messages), deductive, inductive, contradiction. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
-          ),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              peer_id: z.string().describe("The observer peer."),
+              query: z.string().describe("Semantic search query."),
+              target_peer_id: z
+                .string()
+                .optional()
+                .describe("Optional: search conclusions about this target."),
+              top_k: z
+                .number()
+                .optional()
+                .describe("Max results to return."),
+              filters: z
+                .looseObject({})
+                .optional()
+                .describe(
+                  'Optional: filter criteria, e.g. {"level": ["deductive", "inductive"]} to only return conclusions derived during dreaming. Levels: explicit (extracted directly from messages), deductive, inductive, contradiction. See https://honcho.dev/docs/v3/documentation/features/advanced/using-filters',
+                ),
+            }),
     },
     async ({ workspace_id, peer_id, query, target_peer_id, top_k, filters }) => {
       try {
@@ -156,14 +156,14 @@ export function register(server: McpServer, ctx: ToolContext) {
         ATTRIBUTION_NOTE,
         "IDs that no longer exist are omitted rather than erroring, so a shorter result means some premises have been consolidated or deleted.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        conclusion_ids: z
-          .array(z.string())
-          .min(1)
-          .max(100)
-          .describe("Conclusion IDs to fetch (max 100)."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              conclusion_ids: z
+                .array(z.string())
+                .min(1)
+                .max(100)
+                .describe("Conclusion IDs to fetch (max 100)."),
+            }),
     },
     async ({ workspace_id, conclusion_ids }) => {
       try {
@@ -195,18 +195,18 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Use this to see what Honcho built on top of a fact before deleting or correcting it.",
         "Returns conclusion objects with pagination metadata.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        conclusion_id: z.string().describe("The premise conclusion."),
-        page: z.number().int().min(1).optional().describe("Page number (1-indexed)."),
-        size: z
-          .number()
-          .int()
-          .min(1)
-          .max(100)
-          .optional()
-          .describe("Results per page (max 100)."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              conclusion_id: z.string().describe("The premise conclusion."),
+              page: z.number().int().min(1).optional().describe("Page number (1-indexed)."),
+              size: z
+                .number()
+                .int()
+                .min(1)
+                .max(100)
+                .optional()
+                .describe("Results per page (max 100)."),
+            }),
     },
     async ({ workspace_id, conclusion_id, page: pageNum, size }) => {
       try {
@@ -241,22 +241,22 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Use this to inject knowledge into Honcho that wasn't derived from conversation.",
         "Returns the number of conclusions created.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        peer_id: z.string().describe("The observer peer."),
-        target_peer_id: z
-          .string()
-          .describe("The peer the conclusions are about."),
-        conclusions: z
-          .array(z.string())
-          .describe("Conclusion content strings to create."),
-        session_id: z
-          .string()
-          .optional()
-          .describe(
-            "Optional: associate conclusions with a session. Omit for global conclusions.",
-          ),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              peer_id: z.string().describe("The observer peer."),
+              target_peer_id: z
+                .string()
+                .describe("The peer the conclusions are about."),
+              conclusions: z
+                .array(z.string())
+                .describe("Conclusion content strings to create."),
+              session_id: z
+                .string()
+                .optional()
+                .describe(
+                  "Optional: associate conclusions with a session. Omit for global conclusions.",
+                ),
+            }),
     },
     async ({
       workspace_id,
@@ -296,14 +296,14 @@ export function register(server: McpServer, ctx: ToolContext) {
         "Use query_conclusions or list_conclusions to find the ID first.",
         "Use this to remove incorrect or outdated knowledge.",
       ].join("\n"),
-      inputSchema: {
-        workspace_id: workspaceIdSchema(ctx),
-        peer_id: z.string().describe("The observer peer."),
-        target_peer_id: z
-          .string()
-          .describe("The peer the conclusion is about."),
-        conclusion_id: z.string().describe("The conclusion to delete."),
-      },
+      inputSchema: z.object({
+              workspace_id: workspaceIdSchema(ctx),
+              peer_id: z.string().describe("The observer peer."),
+              target_peer_id: z
+                .string()
+                .describe("The peer the conclusion is about."),
+              conclusion_id: z.string().describe("The conclusion to delete."),
+            }),
     },
     async ({ workspace_id, peer_id, target_peer_id, conclusion_id }) => {
       try {
