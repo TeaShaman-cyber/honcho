@@ -66,3 +66,18 @@ the exact checks.json by outcome and preserves the runner exit code:
 
 Counts, blocking IDs and both original and derived artifacts are retained.
 The conformance runner's raw errors and exact source SHA remain authoritative.
+
+## Python client compatibility
+
+The CI probe hermes-python-sdk-smoke.py runs via uv with mcp==2.3.0,
+the Python MCP version declared by upstream Hermes. It confirms both
+the 2025-era initialize + tools/list and the 2026-07-28 server/discover
++ tools/list against the isolated Bun HTTP host. The test bearer is
+synthetic and loopback-only. The SDK 2.3.0 does not accept a direct
+headers= argument on streamable_http_client: it needs an httpx2.AsyncClient.
+Do not claim this covers the exact installed Hermes binary, its auto
+negotiation configuration, OAuth refresh or a real Honcho backend.
+A separate isolated cloud canary with a mocked Honcho backend has shown
+successful search + bounded provenance for both SDK 2.3.0 handshake
+methods. Those positive tool calls remain non-CI evidence until a
+portable fake-backend test fixture is introduced.

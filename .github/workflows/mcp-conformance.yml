@@ -61,6 +61,20 @@ jobs:
           cat /tmp/mcp-conformance-proxy.log
           exit 1
 
+      # The locally observed Hermes is 1.18.2, while this tests only the
+      # same pinned Python MCP SDK API used by upstream Hermes, not the
+      # whole installed agent or its actual local credentials/config.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Python MCP 2.3.0 compatibility smoke (legacy and modern)
+        run: |
+          set -euo pipefail
+          uv run --no-project --python 3.12 --with "mcp==2.3.0"             python mcp/conformance/hermes-python-sdk-smoke.py             --url http://127.0.0.1:3001/mcp
+
       - name: Verify pinned runner covers modern requirements
         id: conformance-ready
         run: |
@@ -124,6 +138,7 @@ jobs:
             echo "- Auth adapter: loopback-only synthetic bearer. OAuth NOT tested."
             echo "- 2025-11-25: initialize and tools/list smoke, NOT full spec certification."
             echo "- 2026-07-28: single stateless scenario, explicit separate gap, non-gating."
+            echo "- Python MCP 2.3.0 SDK (Hermes dependency): initialize and discover + tools/list. Not full Hermes 1.18.2 runtime."
             echo "- Honcho API tool behavior and stdio/Worker hosts not tested."
           } >> "$GITHUB_STEP_SUMMARY"
 
