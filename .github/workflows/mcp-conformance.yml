@@ -17,8 +17,14 @@ jobs:
     timeout-minutes: 18
     env:
       CONFORMANCE_VERSION: "0.2.0-alpha.12"
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact PR source identity
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -27,7 +33,7 @@ jobs:
         run: node --test mcp/conformance/auth-proxy.test.mjs
 
       - name: Build isolated Bun MCP server
-        run: docker build --target runtime --tag honcho-mcp:conformance-${{ github.sha }} mcp
+        run: docker build --target runtime --tag honcho-mcp:conformance-${{ github.event.pull_request.head.sha || github.sha }} mcp
 
       - name: Start isolated HTTP server (no Honcho backend)
         run: |
@@ -35,7 +41,7 @@ jobs:
           docker run --detach --rm --name honcho-mcp-conformance \
             --publish 127.0.0.1:3000:3000 \
             -e HONCHO_API_URL=http://127.0.0.1:8000 \
-            honcho-mcp:conformance-${{ github.sha }}
+            honcho-mcp:conformance-${{ github.event.pull_request.head.sha || github.sha }}
           for attempt in $(seq 1 25); do
             if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
             sleep 1
@@ -56,6 +62,7 @@ jobs:
           exit 1
 
       - name: Verify pinned runner covers modern requirements
+        id: conformance-ready
         run: |
           set -euo pipefail
           mkdir -p results
@@ -90,6 +97,9 @@ jobs:
           tail -25 results/legacy-tools-list.log
 
       - name: Modern 2026-07-28 stateless gap (explicit non-gating audit)
+        # Preserve modern evidence even if an independent legacy check fails.
+        # Run only when runner and endpoint initialized.
+        if: ${{ always() && steps.conformance-ready.outcome == 'success' }}
         run: |
           set -euo pipefail
           set +e
@@ -114,7 +124,7 @@ jobs:
         run: |
           {
             echo "## MCP conformance audit"
-            echo "- Source SHA: ${GITHUB_SHA}"
+            echo "- Exact checked-out source SHA: ${SOURCE_SHA}"
             echo "- Official runner pinned: ${CONFORMANCE_VERSION}"
             echo "- Auth adapter: loopback-only synthetic bearer. OAuth NOT tested."
             echo "- 2025-11-25: initialize and tools/list smoke, NOT full spec certification."
@@ -126,7 +136,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mcp-conformance-${{ github.sha }}
+          name: mcp-conformance-${{ github.event.pull_request.head.sha || github.sha }}
           path: results/
           if-no-files-found: warn
 
