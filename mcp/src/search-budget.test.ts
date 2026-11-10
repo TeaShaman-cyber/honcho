@@ -99,6 +99,22 @@ test("keep complete message text when dropping metadata makes it fit", () => {
   });
 });
 
+test("maximize retained content over metadata when both need truncation", () => {
+  const content = "C".repeat(650);
+  const result = boundedSearchResponse(
+    [message(content, "m1", { verbose_source: "M".repeat(250) })],
+    [],
+    850,
+    2000,
+  );
+  expect(utf8Bytes(result)).toBeLessThanOrEqual(850);
+  expect(result.messages).toHaveLength(1);
+  expect(result.messages[0].content_truncated).toBe(true);
+  expect(result.messages[0].metadata_omitted).toBe(true);
+  expect(result.messages[0].content.length).toBeGreaterThan(200);
+  expect(result.messages[0].content_chars).toBe(650);
+});
+
 test("window overflow omits only accounted-for records, not silent search matches", () => {
   const messages = Array.from({ length: 15 }, (_, i) => message("x".repeat(350), "m" + i));
   const conclusions = Array.from({ length: 15 }, (_, i) =>
