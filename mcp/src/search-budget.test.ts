@@ -75,6 +75,30 @@ test("oversized message metadata is explicitly omitted before losing the message
   });
 });
 
+test("keep complete message text when dropping metadata makes it fit", () => {
+  const content = "C".repeat(216);
+  const result = boundedSearchResponse(
+    [message(content, "m1", { verbose_source: "M".repeat(250) })],
+    [],
+    850,
+    2000,
+  );
+  expect(utf8Bytes(result)).toBeLessThanOrEqual(850);
+  expect(result.messages).toHaveLength(1);
+  expect(result.messages[0]).toMatchObject({
+    id: "m1",
+    content,
+    content_truncated: false,
+    metadata: null,
+    metadata_omitted: true,
+  });
+  expect(result.coverage).toMatchObject({
+    retrieved_messages: 1,
+    returned_messages: 1,
+    omitted_messages: 0,
+  });
+});
+
 test("window overflow omits only accounted-for records, not silent search matches", () => {
   const messages = Array.from({ length: 15 }, (_, i) => message("x".repeat(350), "m" + i));
   const conclusions = Array.from({ length: 15 }, (_, i) =>
