@@ -82,13 +82,15 @@ function addBestFit(
     if (tryAdd(result, kind, candidate, maxBytes)) return;
   }
 
+  let best: Item | null = null;
+  let bestLength = 0;
   for (const candidate of alternatives) {
-    // Only now search the largest representable content prefix by code points.
-    // Counting the final serialized JSON captures escaping and UTF-8 width.
+    // Compare both metadata policies by retained content. On equal-length
+    // prefixes prefer original metadata (the first candidate).
+    // Counting serialized JSON captures escaping and UTF-8 width.
     const chars = Array.from(originalContent);
     let low = 1;
     let high = Math.min(contentLimit, chars.length);
-    let best: Item | null = null;
     while (low <= high) {
       const middle = Math.floor((low + high) / 2);
       const bounded = truncateMessageContent(originalContent, middle);
@@ -106,14 +108,17 @@ function addBestFit(
         const omitted = kind === "messages" ? "omitted_messages" : "omitted_conclusions";
         result.coverage[key] -= 1;
         result.coverage[omitted] += 1;
-        best = shortened;
+        if (middle > bestLength) {
+          best = shortened;
+          bestLength = middle;
+        }
         low = middle + 1;
       } else {
         high = middle - 1;
       }
     }
-    if (best && tryAdd(result, kind, best, maxBytes)) return;
   }
+  if (best && tryAdd(result, kind, best, maxBytes)) return;
   // There is insufficient room even for the identifying/provenance fields.
   // The record is omitted, with the omitted count retained in the envelope.
 }
