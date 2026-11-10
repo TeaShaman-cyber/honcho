@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 
 import httpx2
 from mcp import ClientSession
@@ -35,7 +36,26 @@ async def probe(url: str, mode: str) -> None:
                 names = {tool.name for tool in tools.tools}
                 if "search" not in names:
                     raise AssertionError("Honcho search tool absent")
-                print(f"HERMES_MCP_2_3_0_{mode.upper()}=PASS tools={len(names)}")
+                # Positive protocol-to-tool boundary: this is a synthetic
+                # backend, never real user memory or a Honcho account.
+                result = await session.call_tool(
+                    "search",
+                    {
+                        "workspace_id": "mcp-conformance",
+                        "query": "synthetic canary",
+                        "max_result_json_bytes": 2048,
+                    },
+                )
+                if result.is_error or not result.content:
+                    raise AssertionError(f"search error via {mode}: {result}")
+                payload = json.loads(result.content[0].text)
+                if payload.get("format") != "honcho_search_bounded_v1":
+                    raise AssertionError(f"missing bounded format for {mode}: {payload}")
+                if payload["coverage"]["returned_messages"] != 1:
+                    raise AssertionError(f"unexpected search coverage for {mode}: {payload}")
+                if payload["messages"][0]["content"] != "synthetic-MCP-canary-message":
+                    raise AssertionError(f"unexpected evidence content for {mode}: {payload}")
+                print(f"HERMES_MCP_2_3_0_{mode.upper()}=PASS tools={len(names)} search=PASS")
 
 
 def main() -> None:

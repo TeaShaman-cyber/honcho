@@ -81,3 +81,19 @@ A separate isolated cloud canary with a mocked Honcho backend has shown
 successful search + bounded provenance for both SDK 2.3.0 handshake
 methods. Those positive tool calls remain non-CI evidence until a
 portable fake-backend test fixture is introduced.
+
+## Positive cross-language search probe
+
+The CI-only `fake-honcho-backend.ts` runs on loopback **inside the same
+disposable Docker container** as the MCP server. It is bound to
+`127.0.0.1:8000`; only the MCP HTTP port is published to the ephemeral
+GitHub runner. The Python `mcp==2.3.0` smoke runs legacy initialize and
+modern discover independently, then `tools/list` and bounded `tools/call`
+`search` with `max_result_json_bytes=2048`. It asserts one literal
+synthetic message, `honcho_search_bounded_v1` and returned coverage.
+
+This validates the Python client → transport → real MCP tool dispatcher →
+synthetic Honcho response → bounded evidence path; it is not a substitute
+for acceptance against the installed Hermes client, real Honcho API
+permissions, persistence, OAuth refresh or live data. The fixture may
+never be used as a production backend.

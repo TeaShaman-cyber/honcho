@@ -35,13 +35,15 @@ jobs:
       - name: Build isolated Bun MCP server
         run: docker build --target runtime --tag honcho-mcp:conformance-${{ github.event.pull_request.head.sha || github.sha }} mcp
 
-      - name: Start isolated HTTP server (no Honcho backend)
+      - name: Start isolated HTTP server and synthetic-only backend
         run: |
           set -euo pipefail
           docker run --detach --rm --name honcho-mcp-conformance \
             --publish 127.0.0.1:3000:3000 \
+            --mount "type=bind,src=$PWD/mcp/conformance/fake-honcho-backend.ts,dst=/app/fake-honcho-backend.ts,readonly" \
             -e HONCHO_API_URL=http://127.0.0.1:8000 \
-            honcho-mcp:conformance-${{ github.event.pull_request.head.sha || github.sha }}
+            honcho-mcp:conformance-${{ github.event.pull_request.head.sha || github.sha }} \
+            sh -c 'bun fake-honcho-backend.ts & exec bun src/http.ts'
           for attempt in $(seq 1 25); do
             if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
             sleep 1
@@ -138,8 +140,10 @@ jobs:
             echo "- Auth adapter: loopback-only synthetic bearer. OAuth NOT tested."
             echo "- 2025-11-25: initialize and tools/list smoke, NOT full spec certification."
             echo "- 2026-07-28: single stateless scenario, explicit separate gap, non-gating."
-            echo "- Python MCP 2.3.0 SDK (Hermes dependency): initialize and discover + tools/list. Not full Hermes 1.18.2 runtime."
-            echo "- Honcho API tool behavior and stdio/Worker hosts not tested."
+            echo "- Python MCP 2.3.0 SDK: initialize/discover + tools/list + successful bounded search against synthetic-only Honcho API."
+            echo "- Fixture is isolated in Docker (127.0.0.1:8000); no user corpus or real Honcho auth/OAuth checked."
+            echo "- Not full Hermes 1.18.2 runtime."
+            echo "- Live Honcho API semantics, real bearer refresh, stdio and live Worker execution not tested."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload conformance evidence
